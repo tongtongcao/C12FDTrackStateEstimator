@@ -86,15 +86,62 @@ def main():
     for fname in inputs:
         print(f"Loading data from {fname} ...")
         hits_list, states = read_tracks_with_hits(fname)
-        hits_all.extend(hits_list)  # list of [num_hits, 3]
+        hits_all.extend(hits_list)  # list of [num_hits, 7]
         states_all.extend(states)  # list of [7]
 
     states_all = np.array(states_all, dtype=np.float32)
 
-    # Define plotter
-    plotter = Plotter(print_dir=outDir, end_name=end_name)
+    # ---- 自动统计 hits 与 state 归一化参数 ----
+    print("\n=== 自动计算归一化统计量 ===")
+    all_hits = np.vstack(hits_all)
+    doca_vals = all_hits[:, 0]
+    xo_vals = all_hits[:, 2]
+    yo_vals = all_hits[:, 3]
+    xe_vals = all_hits[:, 4]
+    ye_vals = all_hits[:, 5]
+    z_vals = all_hits[:, 6]
 
-    dataset = TrackDataset(hits_all, states_all)
+    hit_stats = {
+        "doca_mean": float(doca_vals.mean()),
+        "doca_std": float(doca_vals.std()),
+        "xo_mean": float(xo_vals.mean()),
+        "xo_std": float(xo_vals.std()),
+        "yo_mean": float(yo_vals.mean()),
+        "yo_std": float(yo_vals.std()),
+        "xe_mean": float(xe_vals.mean()),
+        "xe_std": float(xe_vals.std()),
+        "ye_mean": float(ye_vals.mean()),
+        "ye_std": float(ye_vals.std()),
+        "z_mean": float(z_vals.mean()),
+        "z_std": float(z_vals.std()),
+    }
+
+    print(f"doca: mean={hit_stats['doca_mean']:.6g}, std={hit_stats['doca_std']:.6g}")
+    print(f"xo: mean={hit_stats['xo_mean']:.6g}, std={hit_stats['xo_std']:.6g}")
+    print(f"yo: mean={hit_stats['yo_mean']:.6g}, std={hit_stats['yo_std']:.6g}")
+    print(f"xe: mean={hit_stats['xe_mean']:.6g}, std={hit_stats['xe_std']:.6g}")
+    print(f"ye: mean={hit_stats['ye_mean']:.6g}, std={hit_stats['ye_std']:.6g}")
+    print(f"z   : mean={hit_stats['z_mean']:.6g}, std={hit_stats['z_std']:.6g}")
+
+    state_names = ["q", "px", "py", "pz", "vx", "vy", "vz"]
+    state_stats = {}
+    print("\n=== State 统计 ===")
+    for i, name in enumerate(state_names):
+        vals = states_all[:, i]
+        mean, std = float(vals.mean()), float(vals.std())
+        state_stats[name] = (mean, std)
+        print(f"{name:>3s}: mean={mean:.6g}, std={std:.6g}")
+
+    print("=========================================\n")
+
+    # 初始化数据集（自动归一化）
+    dataset = TrackDataset(
+        hits_list=hits_all,
+        states=states_all,
+        normalize=True,
+        hit_stats=hit_stats,
+        state_stats=state_stats
+    )
 
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
@@ -108,12 +155,16 @@ def main():
     val_loader = DataLoader(val_set, batch_size=batchSize, shuffle=False, collate_fn=collate_fn)
 
     hits_sample, state_sample, mask_sample = next(iter(train_loader))
-    print('hits_sample shape:', hits_sample.shape)  # e.g. [batch, num_hits, 3]
+    print('hits_sample shape:', hits_sample.shape)  # e.g. [batch, num_hits, 6]
     print('state_sample shape:', state_sample.shape)  # e.g. [batch, 7]
     print('mask_sample shape:', mask_sample.shape)
 
     endT_data = time.time()
     print(f'Loading data took {endT_data - startT_data:.2f}s \n\n')
+
+
+    # Define plotter
+    plotter = Plotter(print_dir=outDir, end_name=end_name)
 
     # -----------------------------
     if args.hidden_dim % args.nhead != 0:
@@ -212,9 +263,22 @@ def main():
     all_preds = torch.cat(all_preds, dim=0).numpy()  # [N, 7]
     all_targets = torch.cat(all_targets, dim=0).numpy()  # [N, 7]
 
+    # -----------------------------
+    # ✅ 反归一化预测与真实值
+    def denormalize_state(states, stats):
+        """反归一化函数"""
+        result = states.copy()
+        for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy", "vz"]):
+            mean, std = stats[key]
+            result[:, i] = result[:, i] * std + mean
+        return result
+
+    all_preds_denorm = denormalize_state(all_preds, state_stats)
+    all_targets_denorm = denormalize_state(all_targets, state_stats)
+
     # 使用 Plotter 绘图
-    plotter.plot_diff(all_targets, all_preds)
-    plotter.plot_pred_target(all_targets, all_preds)
+    plotter.plot_diff(all_targets_denorm, all_preds_denorm)
+    plotter.plot_pred_target(all_targets_denorm, all_preds_denorm)
 
 
 if __name__ == "__main__":

@@ -9,23 +9,49 @@ import numpy as np
 # -----------------------------
 # Dataset
 class TrackDataset(Dataset):
-    def __init__(self, hits_list, states):
-        """
-        hits_list : list of np.ndarray, shape [num_hits, 3] (doca, doca_err, z)
-        states    : np.ndarray, shape [N, 7]
-        """
+    def __init__(self, hits_list, states, normalize=True, hit_stats=None, state_stats=None):
         assert len(hits_list) == len(states), "hits_list 和 states 数量必须相同"
         self.hits_list = hits_list
         self.states = np.array(states, dtype=np.float32)
+        self.normalize = normalize
+
+        # 如果用户没传统计量，就默认 1.0（相当于不归一化）
+        self.hit_stats = hit_stats or {
+            "doca_mean": 0.0, "doca_std": 1.0,
+            "xo_mean": 0.0, "xo_std": 1.0,
+            "yo_mean": 0.0, "yo_std": 1.0,
+            "xe_mean": 0.0, "xe_std": 1.0,
+            "ye_mean": 0.0, "ye_std": 1.0,
+            "z_mean": 0.0, "z_std": 1.0,
+        }
+        self.state_stats = state_stats or {k: (0.0, 1.0) for k in ["q", "px", "py", "pz", "vx", "vy", "vz"]}
 
     def __len__(self):
-        return len(self.hits_list)
+        return len(self.states)
 
     def __getitem__(self, idx):
-        hits = torch.tensor(self.hits_list[idx], dtype=torch.float32)
-        state = torch.tensor(self.states[idx], dtype=torch.float32)
-        return hits, state
+        hits = self.hits_list[idx][:, [0, 2,  3, 4, 5, 6]].astype(np.float32)
+        state = self.states[idx].copy()
 
+        if self.normalize:
+            hits[:, 0] = (hits[:, 0] - self.hit_stats["doca_mean"]) / self.hit_stats["doca_std"]
+            hits[:, 1] = (hits[:, 1] - self.hit_stats["xo_mean"]) / self.hit_stats["xo_std"]
+            hits[:, 2] = (hits[:, 2] - self.hit_stats["yo_mean"]) / self.hit_stats["yo_std"]
+            hits[:, 3] = (hits[:, 3] - self.hit_stats["xe_mean"]) / self.hit_stats["xe_std"]
+            hits[:, 4] = (hits[:, 4] - self.hit_stats["ye_mean"]) / self.hit_stats["ye_std"]
+            hits[:, 5] = (hits[:, 5] - self.hit_stats["z_mean"]) / self.hit_stats["z_std"]
+            for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy", "vz"]):
+                mean, std = self.state_stats[key]
+                state[i] = (state[i] - mean) / std
+
+        return torch.tensor(hits, dtype=torch.float32), torch.tensor(state, dtype=torch.float32)
+
+    def denormalize_state(self, normed_state):
+        s = normed_state.clone().detach().cpu().numpy()
+        for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy", "vz"]):
+            mean, std = self.state_stats[key]
+            s[..., i] = s[..., i] * std + mean
+        return s
 
 # -----------------------------
 # Collate function for variable-length hits
@@ -45,7 +71,7 @@ def collate_fn(batch):
         # mask: True = padding, False = valid
         mask.append([False]*orig_len + [True]*pad_len)
 
-    padded_hits = torch.stack(padded_hits)  # [B, max_len, 3]
+    padded_hits = torch.stack(padded_hits)  # [B, max_len, 6]
     mask = torch.tensor(mask, dtype=torch.bool)  # [B, max_len]
     states = torch.stack(states)  # [B, 7]
     return padded_hits, states, mask
@@ -54,7 +80,7 @@ def collate_fn(batch):
 # -----------------------------
 # Transformer Model with doca_error weighting and padding mask
 class TrackTransformerWithError(pl.LightningModule):
-    def __init__(self, input_dim=3, hidden_dim=32, nhead=4, num_layers=2, lr=1e-3):
+    def __init__(self, input_dim=6, hidden_dim=32, nhead=4, num_layers=2, lr=1e-3):
         super().__init__()
         self.save_hyperparameters()
         self.lr = lr
@@ -79,7 +105,7 @@ class TrackTransformerWithError(pl.LightningModule):
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor):
         """
-        x: [B, max_len, 3] (doca, doca_err, z)
+        x: [B, max_len, 6] (doca, xo, yo, xe, ye, z)
         mask: [B, max_len], True = padding
         """
         # ---- 保证 mask 总是 tensor ----
@@ -92,17 +118,13 @@ class TrackTransformerWithError(pl.LightningModule):
         # transformer
         x_trans = self.transformer(x_emb, src_key_padding_mask=mask)
 
-        # weighting by doca_error
-        doca_error = x[:, :, 1:2]  # [B, max_len, 1]
-        weights = 1.0 / (torch.clamp(doca_error, min=1e-3) ** 2)
+        # 平均池化排除 padding
+        valid_mask = ~mask  # True = valid
+        lengths = valid_mask.sum(dim=1, keepdim=True)  # [B, 1]
+        x_trans = x_trans * valid_mask.unsqueeze(-1)
+        x_pooled = x_trans.sum(dim=1) / lengths
 
-        # zero out padded positions
-        weights = weights * (~mask.unsqueeze(-1))
-
-        # weighted average
-        x_weighted = (x_trans * weights).sum(dim=1) / (weights.sum(dim=1) + 1e-6)
-
-        out = self.fc(x_weighted)
+        out = self.fc(x_pooled)
         return out
 
     def training_step(self, batch, batch_idx):
@@ -132,7 +154,7 @@ class TrackTransformerWrapper(nn.Module):
 
     def forward(self, x: torch.Tensor):
         """
-        x: [B, N, 3]  输入的 hits 数据
+        x: [B, N, 6]  输入的 hits 数据
         自动生成 mask: [B, N]，全 False
         """
         mask = torch.zeros(x.shape[0], x.shape[1], dtype=torch.bool, device=x.device)
