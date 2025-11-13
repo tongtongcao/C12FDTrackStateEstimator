@@ -8,7 +8,7 @@ def read_tracks_with_hits(filename):
 
     返回:
       hits_list: list[np.ndarray], 每个元素形状 [num_hits, 7]
-      states: np.ndarray, 形状 [N, 7]
+      states: np.ndarray, 形状 [N, 6]
     """
     hits_list = []
     states = []
@@ -29,11 +29,11 @@ def read_tracks_with_hits(filename):
 
         # 第二行：track state
         state_values = [float(x) for x in lines[i+1].split(",")]
-        if len(state_values) != 7:
+        if len(state_values) != 6:
             raise ValueError(f"第{i+2}行轨迹初态必须有7个数，但得到{len(state_values)}")
         states.append(state_values)
 
-    states = np.array(states, dtype=np.float32)  # [N, 7]
+    states = np.array(states, dtype=np.float32)  # [N, 6]
     return hits_list, states
 
 

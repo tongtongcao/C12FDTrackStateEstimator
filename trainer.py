@@ -24,7 +24,7 @@ class TrackDataset(Dataset):
             "ye_mean": 0.0, "ye_std": 1.0,
             "z_mean": 0.0, "z_std": 1.0,
         }
-        self.state_stats = state_stats or {k: (0.0, 1.0) for k in ["q", "px", "py", "pz", "vx", "vy", "vz"]}
+        self.state_stats = state_stats or {k: (0.0, 1.0) for k in ["q", "px", "py", "pz", "vx", "vy"]}
 
     def __len__(self):
         return len(self.states)
@@ -40,7 +40,7 @@ class TrackDataset(Dataset):
             hits[:, 3] = (hits[:, 3] - self.hit_stats["xe_mean"]) / self.hit_stats["xe_std"]
             hits[:, 4] = (hits[:, 4] - self.hit_stats["ye_mean"]) / self.hit_stats["ye_std"]
             hits[:, 5] = (hits[:, 5] - self.hit_stats["z_mean"]) / self.hit_stats["z_std"]
-            for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy", "vz"]):
+            for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy"]):
                 mean, std = self.state_stats[key]
                 state[i] = (state[i] - mean) / std
 
@@ -48,7 +48,7 @@ class TrackDataset(Dataset):
 
     def denormalize_state(self, normed_state):
         s = normed_state.clone().detach().cpu().numpy()
-        for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy", "vz"]):
+        for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy"]):
             mean, std = self.state_stats[key]
             s[..., i] = s[..., i] * std + mean
         return s
@@ -98,7 +98,7 @@ class TrackTransformerWithError(pl.LightningModule):
         self.fc = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 7)
+            nn.Linear(hidden_dim, 6)
         )
 
         self.loss_fn = nn.MSELoss()

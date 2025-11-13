@@ -1,6 +1,7 @@
 import os
 import time
 import argparse
+import json
 import random
 import torch
 import pytorch_lightning as pl
@@ -91,30 +92,48 @@ def main():
 
     states_all = np.array(states_all, dtype=np.float32)
 
-    # ---- 自动统计 hits 与 state 归一化参数 ----
-    print("\n=== 自动计算归一化统计量 ===")
-    all_hits = np.vstack(hits_all)
-    doca_vals = all_hits[:, 0]
-    xo_vals = all_hits[:, 2]
-    yo_vals = all_hits[:, 3]
-    xe_vals = all_hits[:, 4]
-    ye_vals = all_hits[:, 5]
-    z_vals = all_hits[:, 6]
+    # === hit & state stats path ===
+    hit_stats_out_path = os.path.join(outDir, "hit_stats.json")
+    state_stats_out_path = os.path.join(outDir, "state_stats.json")
+    hit_stats_nets_path = os.path.join("nets", "hit_stats.json")
+    state_stats_nets_path = os.path.join("nets", "state_stats.json")
 
-    hit_stats = {
-        "doca_mean": float(doca_vals.mean()),
-        "doca_std": float(doca_vals.std()),
-        "xo_mean": float(xo_vals.mean()),
-        "xo_std": float(xo_vals.std()),
-        "yo_mean": float(yo_vals.mean()),
-        "yo_std": float(yo_vals.std()),
-        "xe_mean": float(xe_vals.mean()),
-        "xe_std": float(xe_vals.std()),
-        "ye_mean": float(ye_vals.mean()),
-        "ye_std": float(ye_vals.std()),
-        "z_mean": float(z_vals.mean()),
-        "z_std": float(z_vals.std()),
-    }
+    # === 加载或计算统计量 ===
+    if args.no_train:
+        # 推理模式：从 nets/ 加载
+        print("\n=== 推理模式: 从 nets/ 读取统计量 ===")
+        if not os.path.exists(hit_stats_nets_path) or not os.path.exists(state_stats_nets_path):
+            raise FileNotFoundError("Normalization stats not found in nets/ directory.")
+        with open(hit_stats_nets_path, "r") as f:
+            hit_stats = json.load(f)
+        with open(state_stats_nets_path, "r") as f:
+            state_stats = json.load(f)
+        print(f"Loaded normalization stats from nets/")
+    else:
+        # ---- 自动统计 hits 与 state 归一化参数 ----
+        print("\n=== 自动计算归一化统计量 ===")
+        all_hits = np.vstack(hits_all)
+        doca_vals = all_hits[:, 0]
+        xo_vals = all_hits[:, 2]
+        yo_vals = all_hits[:, 3]
+        xe_vals = all_hits[:, 4]
+        ye_vals = all_hits[:, 5]
+        z_vals = all_hits[:, 6]
+
+        hit_stats = {
+            "doca_mean": float(doca_vals.mean()),
+            "doca_std": float(doca_vals.std()),
+            "xo_mean": float(xo_vals.mean()),
+            "xo_std": float(xo_vals.std()),
+            "yo_mean": float(yo_vals.mean()),
+            "yo_std": float(yo_vals.std()),
+            "xe_mean": float(xe_vals.mean()),
+            "xe_std": float(xe_vals.std()),
+            "ye_mean": float(ye_vals.mean()),
+            "ye_std": float(ye_vals.std()),
+            "z_mean": float(z_vals.mean()),
+            "z_std": float(z_vals.std()),
+        }
 
     print(f"doca: mean={hit_stats['doca_mean']:.6g}, std={hit_stats['doca_std']:.6g}")
     print(f"xo: mean={hit_stats['xo_mean']:.6g}, std={hit_stats['xo_std']:.6g}")
@@ -123,7 +142,7 @@ def main():
     print(f"ye: mean={hit_stats['ye_mean']:.6g}, std={hit_stats['ye_std']:.6g}")
     print(f"z   : mean={hit_stats['z_mean']:.6g}, std={hit_stats['z_std']:.6g}")
 
-    state_names = ["q", "px", "py", "pz", "vx", "vy", "vz"]
+    state_names = ["q", "px", "py", "pz", "vx", "vy"]
     state_stats = {}
     print("\n=== State 统计 ===")
     for i, name in enumerate(state_names):
@@ -131,6 +150,14 @@ def main():
         mean, std = float(vals.mean()), float(vals.std())
         state_stats[name] = (mean, std)
         print(f"{name:>3s}: mean={mean:.6g}, std={std:.6g}")
+
+    # 保存统计量到 outDir/
+    os.makedirs(outDir, exist_ok=True)
+    with open(hit_stats_out_path, "w") as f:
+        json.dump(hit_stats, f, indent=2)
+    with open(state_stats_out_path, "w") as f:
+        json.dump(state_stats, f, indent=2)
+    print(f"Saved normalization stats to {outDir}/")
 
     print("=========================================\n")
 
@@ -268,7 +295,7 @@ def main():
     def denormalize_state(states, stats):
         """反归一化函数"""
         result = states.copy()
-        for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy", "vz"]):
+        for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy"]):
             mean, std = stats[key]
             result[:, i] = result[:, i] * std + mean
         return result
