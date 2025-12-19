@@ -22,7 +22,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Transformer Autoencoder Training")
     parser.add_argument("--device", type=str, choices=["cpu", "gpu", "auto"], default="auto",
                         help="Choose device: cpu, gpu, or auto (default: auto)")
-    parser.add_argument("inputs", type=str, nargs="*", default=["avgWires.csv"],
+    parser.add_argument("inputs", type=str, nargs="*", default=["hitsTracks.csv"],
                         help="One or more input CSV files")
     parser.add_argument("--max_epochs", type=int, default=120,
                         help="Number of training epochs")
@@ -87,8 +87,8 @@ def main():
     for fname in inputs:
         print(f"Loading data from {fname} ...")
         hits_list, states = read_tracks_with_hits(fname)
-        hits_all.extend(hits_list)  # list of [num_hits, 7]
-        states_all.extend(states)  # list of [7]
+        hits_all.extend(hits_list)  # list of [num_hits, 6]
+        states_all.extend(states)  # list of [6]
 
     states_all = np.array(states_all, dtype=np.float32)
 
@@ -114,11 +114,11 @@ def main():
         print("\n=== 自动计算归一化统计量 ===")
         all_hits = np.vstack(hits_all)
         doca_vals = all_hits[:, 0]
-        xo_vals = all_hits[:, 2]
-        yo_vals = all_hits[:, 3]
-        xe_vals = all_hits[:, 4]
-        ye_vals = all_hits[:, 5]
-        z_vals = all_hits[:, 6]
+        xo_vals = all_hits[:, 1]
+        yo_vals = all_hits[:, 2]
+        xe_vals = all_hits[:, 3]
+        ye_vals = all_hits[:, 4]
+        z_vals = all_hits[:, 5]
 
         hit_stats = {
             "doca_mean": float(doca_vals.mean()),
@@ -142,7 +142,7 @@ def main():
     print(f"ye: mean={hit_stats['ye_mean']:.6g}, std={hit_stats['ye_std']:.6g}")
     print(f"z   : mean={hit_stats['z_mean']:.6g}, std={hit_stats['z_std']:.6g}")
 
-    state_names = ["q", "px", "py", "pz", "vx", "vy"]
+    state_names = ["vx", "vy", "tx", "ty", "Q"]
     state_stats = {}
     print("\n=== State 统计 ===")
     for i, name in enumerate(state_names):
@@ -183,7 +183,7 @@ def main():
 
     hits_sample, state_sample, mask_sample = next(iter(train_loader))
     print('hits_sample shape:', hits_sample.shape)  # e.g. [batch, num_hits, 6]
-    print('state_sample shape:', state_sample.shape)  # e.g. [batch, 7]
+    print('state_sample shape:', state_sample.shape)  # e.g. [batch, 5]
     print('mask_sample shape:', mask_sample.shape)
 
     endT_data = time.time()
@@ -197,7 +197,7 @@ def main():
     if args.hidden_dim % args.nhead != 0:
         raise ValueError(f"d_model ({args.hidden_dim}) must be divisible by nhead ({args.nhead})")
 
-    model = TrackTransformerWithError(
+    model = TrackTransformer(
         hidden_dim=args.hidden_dim,
         nhead=args.nhead,
         num_layers=args.num_layers,
@@ -287,15 +287,15 @@ def main():
     print(f'Test with {len(val_loader2.dataset)} samples took {endT_test - startT_test:.2f}s \n\n')
 
     # 合并整个验证集
-    all_preds = torch.cat(all_preds, dim=0).numpy()  # [N, 7]
-    all_targets = torch.cat(all_targets, dim=0).numpy()  # [N, 7]
+    all_preds = torch.cat(all_preds, dim=0).numpy()  # [N, 6]
+    all_targets = torch.cat(all_targets, dim=0).numpy()  # [N, 6]
 
     # -----------------------------
     # ✅ 反归一化预测与真实值
     def denormalize_state(states, stats):
         """反归一化函数"""
         result = states.copy()
-        for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy"]):
+        for i, key in enumerate(["vx", "vy", "tx", "ty", "Q"]):
             mean, std = stats[key]
             result[:, i] = result[:, i] * std + mean
         return result

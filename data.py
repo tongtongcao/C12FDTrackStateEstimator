@@ -3,11 +3,11 @@ import numpy as np
 def read_tracks_with_hits(filename):
     """
     读取CSV文件，其中每个事件由两行组成：
-      第1行: 一条轨迹的所有hits，每个hit为(docа, doca_err, xo, yo, xe, ye z)
-      第2行: 对应的轨迹初态 (q, px, py, pz, vx, vy, vz)
+      第1行: 一条轨迹的所有hits，每个hit为(docа, xo, yo, xe, ye, z)
+      第2行: 对应的轨迹初态 (vx, vy, tx, ty, q/p)
 
     返回:
-      hits_list: list[np.ndarray], 每个元素形状 [num_hits, 7]
+      hits_list: list[np.ndarray], 每个元素形状 [num_hits, 6]
       states: np.ndarray, 形状 [N, 6]
     """
     hits_list = []
@@ -22,18 +22,18 @@ def read_tracks_with_hits(filename):
     for i in range(0, len(lines), 2):
         # 第一行：hits
         hit_values = [float(x) for x in lines[i].split(",")]
-        if len(hit_values) % 7 != 0:
-            raise ValueError(f"第{i+1}行 hits 数量不是3的倍数: {len(hit_values)}")
-        hits = np.array(hit_values, dtype=np.float32).reshape(-1, 7)  # [num_hits, 3]
+        if len(hit_values) % 6 != 0:
+            raise ValueError(f"第{i+1}行 hits 数量不是6的倍数: {len(hit_values)}")
+        hits = np.array(hit_values, dtype=np.float32).reshape(-1, 6)  # [num_hits, 6]
         hits_list.append(hits)
 
         # 第二行：track state
         state_values = [float(x) for x in lines[i+1].split(",")]
-        if len(state_values) != 6:
-            raise ValueError(f"第{i+2}行轨迹初态必须有7个数，但得到{len(state_values)}")
+        if len(state_values) != 5:
+            raise ValueError(f"第{i+2}行轨迹初态必须有5个数，但得到{len(state_values)}")
         states.append(state_values)
 
-    states = np.array(states, dtype=np.float32)  # [N, 6]
+    states = np.array(states, dtype=np.float32)  # [N, 5]
     return hits_list, states
 
 
@@ -41,5 +41,5 @@ def read_tracks_with_hits(filename):
 if __name__ == "__main__":
     hits, states = read_tracks_with_hits("sample.csv")
     print(f"共读取 {len(hits)} 条轨迹")
-    print(f"第一条轨迹 hits 形状: {hits[0].shape}")  # (num_hits, 3)
+    print(f"第一条轨迹 hits 形状: {hits[0].shape}")  # (num_hits, 6)
     print(f"第一条轨迹初态: {states[0]}")

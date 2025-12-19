@@ -24,13 +24,13 @@ class TrackDataset(Dataset):
             "ye_mean": 0.0, "ye_std": 1.0,
             "z_mean": 0.0, "z_std": 1.0,
         }
-        self.state_stats = state_stats or {k: (0.0, 1.0) for k in ["q", "px", "py", "pz", "vx", "vy"]}
+        self.state_stats = state_stats or {k: (0.0, 1.0) for k in ["vx", "vy", "tx", "ty", "Q"]}
 
     def __len__(self):
         return len(self.states)
 
     def __getitem__(self, idx):
-        hits = self.hits_list[idx][:, [0, 2,  3, 4, 5, 6]].astype(np.float32)
+        hits = self.hits_list[idx].astype(np.float32)
         state = self.states[idx].copy()
 
         if self.normalize:
@@ -40,7 +40,7 @@ class TrackDataset(Dataset):
             hits[:, 3] = (hits[:, 3] - self.hit_stats["xe_mean"]) / self.hit_stats["xe_std"]
             hits[:, 4] = (hits[:, 4] - self.hit_stats["ye_mean"]) / self.hit_stats["ye_std"]
             hits[:, 5] = (hits[:, 5] - self.hit_stats["z_mean"]) / self.hit_stats["z_std"]
-            for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy"]):
+            for i, key in enumerate(["vx", "vy", "tx", "ty", "Q"]):
                 mean, std = self.state_stats[key]
                 state[i] = (state[i] - mean) / std
 
@@ -48,7 +48,7 @@ class TrackDataset(Dataset):
 
     def denormalize_state(self, normed_state):
         s = normed_state.clone().detach().cpu().numpy()
-        for i, key in enumerate(["q", "px", "py", "pz", "vx", "vy"]):
+        for i, key in enumerate(["vx", "vy", "tx", "ty", "Q"]):
             mean, std = self.state_stats[key]
             s[..., i] = s[..., i] * std + mean
         return s
@@ -73,13 +73,13 @@ def collate_fn(batch):
 
     padded_hits = torch.stack(padded_hits)  # [B, max_len, 6]
     mask = torch.tensor(mask, dtype=torch.bool)  # [B, max_len]
-    states = torch.stack(states)  # [B, 7]
+    states = torch.stack(states)  # [B, 5]
     return padded_hits, states, mask
 
 
 # -----------------------------
-# Transformer Model with doca_error weighting and padding mask
-class TrackTransformerWithError(pl.LightningModule):
+# Transformer Model with padding mask
+class TrackTransformer(pl.LightningModule):
     def __init__(self, input_dim=6, hidden_dim=32, nhead=4, num_layers=2, lr=1e-3):
         super().__init__()
         self.save_hyperparameters()
@@ -98,7 +98,7 @@ class TrackTransformerWithError(pl.LightningModule):
         self.fc = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 6)
+            nn.Linear(hidden_dim, 5)
         )
 
         self.loss_fn = nn.MSELoss()

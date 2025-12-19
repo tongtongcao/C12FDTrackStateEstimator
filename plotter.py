@@ -67,9 +67,9 @@ class Plotter:
 
         Parameters
         ----------
-        y_true : np.ndarray, shape [N,7]
-            True track states: [q, px, py, pz, vx, vy, vz]
-        y_pred : np.ndarray, shape [N,7]
+        y_true : np.ndarray, shape [N,5]
+            True track states: ["vx", "vy", "tx", "ty", "Q"]
+        y_pred : np.ndarray, shape [N,5]
             Predicted track states
         show : bool, optional
             If True, display plots interactively
@@ -86,28 +86,28 @@ class Plotter:
 
         # === 预定义每个变量的拟合范围和显示范围 ===
         fit_ranges = {
-            'px': (-0.05, 0.05),
-            'py': (-0.05, 0.05),
-            'pz': (-0.15, 0.15),
             'vx': (-1.0, 1.0),
-            'vy': (-5.0, 5.0)
+            'vy': (-3.0, 3.0),
+            'tx': (-0.005, 0.005),
+            'ty': (-0.01, 0.01),
+            'Q': (-0.05, 0.05),
         }
         plot_ranges = {
-            'px': (-0.2, 0.2),
-            'py': (-0.2, 0.2),
-            'pz': (-0.5, 0.5),
             'vx': (-5, 5),
-            'vy': (-15, 15)
+            'vy': (-15, 15),
+            'tx': (-0.05, 0.05),
+            'ty': (-0.05, 0.05),
+            'Q': (-0.2, 0.2),
         }
 
-        names = ['q', 'px', 'py', 'pz', 'vx', 'vy']
+        names = ["vx", "vy", "tx", "ty", "Q"]
         fig, axes = plt.subplots(2, 3, figsize=(18, 10))
         axes = axes.flatten()
 
         results = []
 
-        for i, name in enumerate(names[1:]):  # skip q
-            diff = y_pred[:, i + 1] - y_true[:, i + 1]
+        for i, name in enumerate(names[0:]):
+            diff = y_pred[:, i] - y_true[:, i]
             diff = diff[np.isfinite(diff)]
 
             # 取出固定范围
@@ -148,23 +148,6 @@ class Plotter:
         plt.savefig(outname, dpi=200)
         plt.close()
 
-        # --- Charge 直方图 ---
-        q_true = np.sign(y_true[:, 0]).astype(int)
-        q_pred = y_pred[:, 0]
-        plt.figure(figsize=(8, 6))
-        for q_val in np.unique(q_true):
-            mask = q_true == q_val
-            plt.hist(q_pred[mask], bins=50, alpha=0.7, label=f"true q={q_val}")
-        plt.xlabel("Predicted q")
-        plt.ylabel("Counts")
-        plt.title("Charge prediction histogram")
-        plt.legend()
-        plt.grid(True, linestyle='--', alpha=0.4)
-        plt.tight_layout()
-        outname = os.path.join(self.print_dir, f"track_charge_{self.end_name}.png")
-        plt.savefig(outname, dpi=200)
-        plt.close()
-
         # --- 保存拟合结果 ---
         df = pd.DataFrame(results, columns=['Variable', 'Mean(μ)', 'Sigma(σ)'])
         csv_path = os.path.join(self.print_dir, f"track_diff_fit_{self.end_name}.csv")
@@ -174,23 +157,23 @@ class Plotter:
 
     def plot_pred_target(self, targets, preds):
         """
-        Plot predicted vs true values for px, py, pz, vx, vy, vz.
+        Plot predicted vs true values for "vx", "vy", "tx", "ty", "Q".
 
         Parameters
         ----------
-        targets : np.ndarray, shape [N, 7]
-            Ground truth track states (q, px, py, pz, vx, vy, vz)
-        preds : np.ndarray, shape [N, 7]
+        targets : np.ndarray, shape [N, 5]
+            Ground truth track states ("vx", "vy", "tx", "ty", "Q")
+        preds : np.ndarray, shape [N, 5]
             Model predictions
         """
-        components = ['px', 'py', 'pz', 'vx', 'vy']
+        components = ["vx", "vy", "tx", "ty", "Q"]
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         axes = axes.flatten()
 
         for i, comp in enumerate(components):
             ax = axes[i]
-            true_vals = targets[:, i + 1]  # +1 因为第0列是 charge q
-            pred_vals = preds[:, i + 1]
+            true_vals = targets[:, i]
+            pred_vals = preds[:, i]
 
             ax.scatter(true_vals, pred_vals, s=10, alpha=0.5, color='royalblue')
             ax.plot([true_vals.min(), true_vals.max()],
