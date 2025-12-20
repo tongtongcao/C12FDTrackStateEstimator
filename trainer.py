@@ -18,10 +18,9 @@ class TrackDataset(Dataset):
         # 如果用户没传统计量，就默认 1.0（相当于不归一化）
         self.hit_stats = hit_stats or {
             "doca_mean": 0.0, "doca_std": 1.0,
-            "xo_mean": 0.0, "xo_std": 1.0,
-            "yo_mean": 0.0, "yo_std": 1.0,
-            "xe_mean": 0.0, "xe_std": 1.0,
-            "ye_mean": 0.0, "ye_std": 1.0,
+            "xm_mean": 0.0, "xm_std": 1.0,
+            "xr_mean": 0.0, "xr_std": 1.0,
+            "yr_mean": 0.0, "yr_std": 1.0,
             "z_mean": 0.0, "z_std": 1.0,
         }
         self.state_stats = state_stats or {k: (0.0, 1.0) for k in ["vx", "vy", "tx", "ty", "Q"]}
@@ -35,11 +34,10 @@ class TrackDataset(Dataset):
 
         if self.normalize:
             hits[:, 0] = (hits[:, 0] - self.hit_stats["doca_mean"]) / self.hit_stats["doca_std"]
-            hits[:, 1] = (hits[:, 1] - self.hit_stats["xo_mean"]) / self.hit_stats["xo_std"]
-            hits[:, 2] = (hits[:, 2] - self.hit_stats["yo_mean"]) / self.hit_stats["yo_std"]
-            hits[:, 3] = (hits[:, 3] - self.hit_stats["xe_mean"]) / self.hit_stats["xe_std"]
-            hits[:, 4] = (hits[:, 4] - self.hit_stats["ye_mean"]) / self.hit_stats["ye_std"]
-            hits[:, 5] = (hits[:, 5] - self.hit_stats["z_mean"]) / self.hit_stats["z_std"]
+            hits[:, 1] = (hits[:, 1] - self.hit_stats["xm_mean"]) / self.hit_stats["xm_std"]
+            hits[:, 2] = (hits[:, 2] - self.hit_stats["xr_mean"]) / self.hit_stats["xr_std"]
+            hits[:, 3] = (hits[:, 3] - self.hit_stats["yr_mean"]) / self.hit_stats["yr_std"]
+            hits[:, 4] = (hits[:, 4] - self.hit_stats["z_mean"]) / self.hit_stats["z_std"]
             for i, key in enumerate(["vx", "vy", "tx", "ty", "Q"]):
                 mean, std = self.state_stats[key]
                 state[i] = (state[i] - mean) / std
@@ -71,7 +69,7 @@ def collate_fn(batch):
         # mask: True = padding, False = valid
         mask.append([False]*orig_len + [True]*pad_len)
 
-    padded_hits = torch.stack(padded_hits)  # [B, max_len, 6]
+    padded_hits = torch.stack(padded_hits)  # [B, max_len, 5]
     mask = torch.tensor(mask, dtype=torch.bool)  # [B, max_len]
     states = torch.stack(states)  # [B, 5]
     return padded_hits, states, mask
@@ -80,7 +78,7 @@ def collate_fn(batch):
 # -----------------------------
 # Transformer Model with padding mask
 class TrackTransformer(pl.LightningModule):
-    def __init__(self, input_dim=6, hidden_dim=32, nhead=4, num_layers=2, lr=1e-3):
+    def __init__(self, input_dim=5, hidden_dim=32, nhead=4, num_layers=2, lr=1e-3):
         super().__init__()
         self.save_hyperparameters()
         self.lr = lr
@@ -105,7 +103,7 @@ class TrackTransformer(pl.LightningModule):
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor):
         """
-        x: [B, max_len, 6] (doca, xo, yo, xe, ye, z)
+        x: [B, max_len, 5] (doca, xm, xr, yr, z)
         mask: [B, max_len], True = padding
         """
         # ---- 保证 mask 总是 tensor ----
@@ -154,7 +152,7 @@ class TrackTransformerWrapper(nn.Module):
 
     def forward(self, x: torch.Tensor):
         """
-        x: [B, N, 6]  输入的 hits 数据
+        x: [B, N, 5]  输入的 hits 数据
         自动生成 mask: [B, N]，全 False
         """
         mask = torch.zeros(x.shape[0], x.shape[1], dtype=torch.bool, device=x.device)

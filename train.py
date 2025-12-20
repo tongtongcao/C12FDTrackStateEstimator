@@ -87,8 +87,8 @@ def main():
     for fname in inputs:
         print(f"Loading data from {fname} ...")
         hits_list, states = read_tracks_with_hits(fname)
-        hits_all.extend(hits_list)  # list of [num_hits, 6]
-        states_all.extend(states)  # list of [6]
+        hits_all.extend(hits_list)  # list of [num_hits, 5]
+        states_all.extend(states)  # list of [5]
 
     states_all = np.array(states_all, dtype=np.float32)
 
@@ -114,32 +114,28 @@ def main():
         print("\n=== 自动计算归一化统计量 ===")
         all_hits = np.vstack(hits_all)
         doca_vals = all_hits[:, 0]
-        xo_vals = all_hits[:, 1]
-        yo_vals = all_hits[:, 2]
-        xe_vals = all_hits[:, 3]
-        ye_vals = all_hits[:, 4]
-        z_vals = all_hits[:, 5]
+        xm_vals = all_hits[:, 1]
+        xr_vals = all_hits[:, 2]
+        yr_vals = all_hits[:, 3]
+        z_vals = all_hits[:, 4]
 
         hit_stats = {
             "doca_mean": float(doca_vals.mean()),
             "doca_std": float(doca_vals.std()),
-            "xo_mean": float(xo_vals.mean()),
-            "xo_std": float(xo_vals.std()),
-            "yo_mean": float(yo_vals.mean()),
-            "yo_std": float(yo_vals.std()),
-            "xe_mean": float(xe_vals.mean()),
-            "xe_std": float(xe_vals.std()),
-            "ye_mean": float(ye_vals.mean()),
-            "ye_std": float(ye_vals.std()),
+            "xm_mean": float(xm_vals.mean()),
+            "xm_std": float(xm_vals.std()),
+            "xr_mean": float(xr_vals.mean()),
+            "xr_std": float(xr_vals.std()),
+            "yr_mean": float(yr_vals.mean()),
+            "yr_std": float(yr_vals.std()),
             "z_mean": float(z_vals.mean()),
             "z_std": float(z_vals.std()),
         }
 
     print(f"doca: mean={hit_stats['doca_mean']:.6g}, std={hit_stats['doca_std']:.6g}")
-    print(f"xo: mean={hit_stats['xo_mean']:.6g}, std={hit_stats['xo_std']:.6g}")
-    print(f"yo: mean={hit_stats['yo_mean']:.6g}, std={hit_stats['yo_std']:.6g}")
-    print(f"xe: mean={hit_stats['xe_mean']:.6g}, std={hit_stats['xe_std']:.6g}")
-    print(f"ye: mean={hit_stats['ye_mean']:.6g}, std={hit_stats['ye_std']:.6g}")
+    print(f"xm: mean={hit_stats['xm_mean']:.6g}, std={hit_stats['xm_std']:.6g}")
+    print(f"xr: mean={hit_stats['xr_mean']:.6g}, std={hit_stats['xr_std']:.6g}")
+    print(f"yr: mean={hit_stats['yr_mean']:.6g}, std={hit_stats['yr_std']:.6g}")
     print(f"z   : mean={hit_stats['z_mean']:.6g}, std={hit_stats['z_std']:.6g}")
 
     state_names = ["vx", "vy", "tx", "ty", "Q"]
@@ -182,7 +178,7 @@ def main():
     val_loader = DataLoader(val_set, batch_size=batchSize, shuffle=False, collate_fn=collate_fn)
 
     hits_sample, state_sample, mask_sample = next(iter(train_loader))
-    print('hits_sample shape:', hits_sample.shape)  # e.g. [batch, num_hits, 6]
+    print('hits_sample shape:', hits_sample.shape)  # e.g. [batch, num_hits, 5]
     print('state_sample shape:', state_sample.shape)  # e.g. [batch, 5]
     print('mask_sample shape:', mask_sample.shape)
 
@@ -287,8 +283,8 @@ def main():
     print(f'Test with {len(val_loader2.dataset)} samples took {endT_test - startT_test:.2f}s \n\n')
 
     # 合并整个验证集
-    all_preds = torch.cat(all_preds, dim=0).numpy()  # [N, 6]
-    all_targets = torch.cat(all_targets, dim=0).numpy()  # [N, 6]
+    all_preds = torch.cat(all_preds, dim=0).numpy()  # [N, 5]
+    all_targets = torch.cat(all_targets, dim=0).numpy()  # [N, 5]
 
     # -----------------------------
     # ✅ 反归一化预测与真实值
