@@ -68,7 +68,7 @@ class Plotter:
         Parameters
         ----------
         y_true : np.ndarray, shape [N,5]
-            True track states: ["vx", "vy", "tx", "ty", "Q"]
+            True track states: ["x", "y", "tx", "ty", "Q"]
         y_pred : np.ndarray, shape [N,5]
             Predicted track states
         show : bool, optional
@@ -86,21 +86,21 @@ class Plotter:
 
         # === 预定义每个变量的拟合范围和显示范围 ===
         fit_ranges = {
-            'vx': (-1.0, 1.0),
-            'vy': (-3.0, 3.0),
+            'x': (-1.0, 1.0),
+            'y': (-3.0, 3.0),
             'tx': (-0.005, 0.005),
             'ty': (-0.01, 0.01),
             'Q': (-0.05, 0.05),
         }
         plot_ranges = {
-            'vx': (-5, 5),
-            'vy': (-15, 15),
+            'x': (-5, 5),
+            'y': (-15, 15),
             'tx': (-0.05, 0.05),
             'ty': (-0.05, 0.05),
             'Q': (-0.2, 0.2),
         }
 
-        names = ["vx", "vy", "tx", "ty", "Q"]
+        names = ["x", "y", "tx", "ty", "Q"]
         fig, axes = plt.subplots(2, 3, figsize=(18, 10))
         axes = axes.flatten()
 
@@ -157,16 +157,16 @@ class Plotter:
 
     def plot_pred_target(self, targets, preds):
         """
-        Plot predicted vs true values for "vx", "vy", "tx", "ty", "Q".
+        Plot predicted vs true values for "x", "y", "tx", "ty", "Q".
 
         Parameters
         ----------
         targets : np.ndarray, shape [N, 5]
-            Ground truth track states ("vx", "vy", "tx", "ty", "Q")
+            Ground truth track states ("x", "y", "tx", "ty", "Q")
         preds : np.ndarray, shape [N, 5]
             Model predictions
         """
-        components = ["vx", "vy", "tx", "ty", "Q"]
+        components = ["x", "y", "tx", "ty", "Q"]
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         axes = axes.flatten()
 

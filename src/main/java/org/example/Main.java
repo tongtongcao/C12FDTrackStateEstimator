@@ -129,7 +129,7 @@ public class Main {
             float[] predState = predictor.predict(hitsExample);
 
             System.out.printf("Predicted track state:%n");
-            System.out.printf("vx = %.4f, vy = %.4f, tx = %.4f, ty = %.4f, Q = %.4f%n",
+            System.out.printf("x = %.4f, y = %.4f, tx = %.4f, ty = %.4f, Q = %.4f%n",
                     predState[0], predState[1], predState[2], predState[3], predState[4]);
         }
     }

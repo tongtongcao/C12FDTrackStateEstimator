@@ -4,7 +4,7 @@ def read_tracks_with_hits(filename):
     """
     读取CSV文件，其中每个事件由两行组成：
       第1行: 一条轨迹的所有hits，每个hit为(docа, xm, xr, yr, z)
-      第2行: 对应的轨迹初态 (vx, vy, tx, ty, q/p)
+      第2行: 对应的轨迹初态 (x, y, tx, ty, q/p) at z = 229 in the tilted sector frame
 
     返回:
       hits_list: list[np.ndarray], 每个元素形状 [num_hits, 5]

@@ -138,7 +138,7 @@ def main():
     print(f"yr: mean={hit_stats['yr_mean']:.6g}, std={hit_stats['yr_std']:.6g}")
     print(f"z   : mean={hit_stats['z_mean']:.6g}, std={hit_stats['z_std']:.6g}")
 
-    state_names = ["vx", "vy", "tx", "ty", "Q"]
+    state_names = ["x", "y", "tx", "ty", "Q"]
     state_stats = {}
     print("\n=== State 统计 ===")
     for i, name in enumerate(state_names):
@@ -252,10 +252,10 @@ def main():
         torchscript_model = torch.jit.script(wrapper_model)
 
         # 保存
-        torchscript_model.save(f"{outDir}/tae_{end_name}.pt")
+        torchscript_model.save(f"{outDir}/transformer_{end_name}.pt")
     # -----------------------------
     # Load model for inference
-    model_file = f"{outDir}/tae_{end_name}.pt" if doTraining else "nets/tae_default.pt"
+    model_file = f"{outDir}/transformer_{end_name}.pt" if doTraining else "nets/transformer_default.pt"
     model = torch.jit.load(model_file)
     model.eval()
 
@@ -291,7 +291,7 @@ def main():
     def denormalize_state(states, stats):
         """反归一化函数"""
         result = states.copy()
-        for i, key in enumerate(["vx", "vy", "tx", "ty", "Q"]):
+        for i, key in enumerate(["x", "y", "tx", "ty", "Q"]):
             mean, std = stats[key]
             result[:, i] = result[:, i] * std + mean
         return result

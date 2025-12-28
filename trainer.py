@@ -23,7 +23,7 @@ class TrackDataset(Dataset):
             "yr_mean": 0.0, "yr_std": 1.0,
             "z_mean": 0.0, "z_std": 1.0,
         }
-        self.state_stats = state_stats or {k: (0.0, 1.0) for k in ["vx", "vy", "tx", "ty", "Q"]}
+        self.state_stats = state_stats or {k: (0.0, 1.0) for k in ["x", "y", "tx", "ty", "Q"]}
 
     def __len__(self):
         return len(self.states)
@@ -38,7 +38,7 @@ class TrackDataset(Dataset):
             hits[:, 2] = (hits[:, 2] - self.hit_stats["xr_mean"]) / self.hit_stats["xr_std"]
             hits[:, 3] = (hits[:, 3] - self.hit_stats["yr_mean"]) / self.hit_stats["yr_std"]
             hits[:, 4] = (hits[:, 4] - self.hit_stats["z_mean"]) / self.hit_stats["z_std"]
-            for i, key in enumerate(["vx", "vy", "tx", "ty", "Q"]):
+            for i, key in enumerate(["x", "y", "tx", "ty", "Q"]):
                 mean, std = self.state_stats[key]
                 state[i] = (state[i] - mean) / std
 
@@ -46,7 +46,7 @@ class TrackDataset(Dataset):
 
     def denormalize_state(self, normed_state):
         s = normed_state.clone().detach().cpu().numpy()
-        for i, key in enumerate(["vx", "vy", "tx", "ty", "Q"]):
+        for i, key in enumerate(["x", "y", "tx", "ty", "Q"]):
             mean, std = self.state_stats[key]
             s[..., i] = s[..., i] * std + mean
         return s
