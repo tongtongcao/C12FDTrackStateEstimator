@@ -10,6 +10,7 @@ from trainer import *
 from data import *
 from plotter import Plotter
 
+
 def parse_args():
     """
     Parse command-line arguments for training or inference.
@@ -17,54 +18,74 @@ def parse_args():
     Returns
     -------
     argparse.Namespace
-        Parsed arguments including device, input files, hyperparameters, and output options.
+        Parsed arguments including device selection, input files,
+        model hyperparameters, and output options.
     """
     parser = argparse.ArgumentParser(description="Transformer Autoencoder Training")
+
+    # Device selection
     parser.add_argument("--device", type=str, choices=["cpu", "gpu", "auto"], default="auto",
                         help="Choose device: cpu, gpu, or auto (default: auto)")
+
+    # Input data files
     parser.add_argument("inputs", type=str, nargs="*", default=["hitsTracks.csv"],
                         help="One or more input CSV files")
+
+    # Training hyperparameters
     parser.add_argument("--max_epochs", type=int, default=120,
                         help="Number of training epochs")
     parser.add_argument("--batch_size", type=int, default=256,
                         help="Batch size for DataLoader")
-    parser.add_argument("--outdir", type=str, default="outputs/local",
-                        help="Directory to save models and plots")
-    parser.add_argument("--end_name", type=str, default="",
-                        help="Optional suffix to append to output files")
+    parser.add_argument("--lr", type=float, default=1e-3,
+                        help="Learning rate for optimizer")
+
+    # Model architecture parameters
     parser.add_argument("--hidden_dim", type=int, default=32,
-                        help="dimension of hidden layer")
+                        help="Hidden dimension (d_model) of the transformer")
     parser.add_argument("--nhead", type=int, default=4,
                         help="Number of attention heads in the transformer")
     parser.add_argument("--num_layers", type=int, default=3,
                         help="Number of transformer encoder layers")
-    parser.add_argument("--lr", type=float, default=1e-3,
-                        help="Learning rate for optimizer")
+
+    # Output and runtime options
+    parser.add_argument("--outdir", type=str, default="outputs/local",
+                        help="Directory to save models and plots")
+    parser.add_argument("--end_name", type=str, default="",
+                        help="Optional suffix appended to output files")
     parser.add_argument("--no_train", action="store_true",
                         help="Skip training and only run inference using a saved model")
     parser.add_argument("--enable_progress_bar", action="store_true",
                         help="Enable progress bar during training (default: disabled)")
+
     return parser.parse_args()
 
+
 def set_seed(seed=42):
+    """
+    Fix random seeds to ensure reproducibility.
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.use_deterministic_algorithms(True, warn_only=True)
 
-# -----------------------------
+
+# --------------------------------------------------
 def main():
     """
-    Main script to train or test the Transformer Masked Autoencoder.
+    Main entry point for training or evaluating the Transformer-based
+    masked autoencoder / regression model.
 
-    Workflow:
-        1. Parse arguments and create output directories.
-        2. Load CSV data files and convert to FeatureDataset.
-        3. Split dataset into training and validation sets.
-        4. Initialize the TransformerAutoencoder model.
-        5. Train the model if not skipped.
-        6. Run inference on the validation set and plot results.
+    Workflow
+    --------
+    1. Parse command-line arguments and set random seeds.
+    2. Load input CSV files and collect hit-level and state-level data.
+    3. Compute or load normalization statistics.
+    4. Construct datasets and data loaders.
+    5. Train the transformer model (unless --no_train is specified).
+    6. Run inference on the validation set.
+    7. Denormalize predictions and generate diagnostic plots.
     """
     set_seed(42)
 
@@ -76,43 +97,51 @@ def main():
     batchSize = args.batch_size
     end_name = args.end_name
     doTraining = not args.no_train
+
+    # Ensure output directory exists
     os.makedirs(outDir, exist_ok=True)
 
-    # -----------------------------
-    print('\n\nLoading data...')
+    # --------------------------------------------------
+    # Load data from CSV files
+    print("\n\nLoading data...")
     startT_data = time.time()
 
-    hits_all = []
-    states_all = []
+    hits_all = []     # List of hit arrays, each with shape [num_hits, 5]
+    states_all = []   # List of state vectors, each with shape [5]
+
     for fname in inputs:
         print(f"Loading data from {fname} ...")
         hits_list, states = read_tracks_with_hits(fname)
-        hits_all.extend(hits_list)  # list of [num_hits, 5]
-        states_all.extend(states)  # list of [5]
+        hits_all.extend(hits_list)
+        states_all.extend(states)
 
     states_all = np.array(states_all, dtype=np.float32)
 
-    # === hit & state stats path ===
+    # Paths for normalization statistics
     hit_stats_out_path = os.path.join(outDir, "hit_stats.json")
     state_stats_out_path = os.path.join(outDir, "state_stats.json")
     hit_stats_nets_path = os.path.join("nets", "hit_stats.json")
     state_stats_nets_path = os.path.join("nets", "state_stats.json")
 
-    # === 加载或计算统计量 ===
+    # --------------------------------------------------
+    # Load or compute normalization statistics
     if args.no_train:
-        # 推理模式：从 nets/ 加载
-        print("\n=== 推理模式: 从 nets/ 读取统计量 ===")
+        # Inference mode: load statistics from pre-trained model directory
+        print("\n=== Inference mode: loading normalization stats from nets/ ===")
         if not os.path.exists(hit_stats_nets_path) or not os.path.exists(state_stats_nets_path):
             raise FileNotFoundError("Normalization stats not found in nets/ directory.")
+
         with open(hit_stats_nets_path, "r") as f:
             hit_stats = json.load(f)
         with open(state_stats_nets_path, "r") as f:
             state_stats = json.load(f)
-        print(f"Loaded normalization stats from nets/")
+
+        print("Loaded normalization stats from nets/")
     else:
-        # ---- 自动统计 hits 与 state 归一化参数 ----
-        print("\n=== 自动计算归一化统计量 ===")
+        # Training mode: compute normalization statistics from data
+        print("\n=== Automatically computing normalization statistics ===")
         all_hits = np.vstack(hits_all)
+
         doca_vals = all_hits[:, 0]
         xm_vals = all_hits[:, 1]
         xr_vals = all_hits[:, 2]
@@ -132,32 +161,35 @@ def main():
             "z_std": float(z_vals.std()),
         }
 
+    # Print hit-level statistics
     print(f"doca: mean={hit_stats['doca_mean']:.6g}, std={hit_stats['doca_std']:.6g}")
-    print(f"xm: mean={hit_stats['xm_mean']:.6g}, std={hit_stats['xm_std']:.6g}")
-    print(f"xr: mean={hit_stats['xr_mean']:.6g}, std={hit_stats['xr_std']:.6g}")
-    print(f"yr: mean={hit_stats['yr_mean']:.6g}, std={hit_stats['yr_std']:.6g}")
+    print(f"xm  : mean={hit_stats['xm_mean']:.6g}, std={hit_stats['xm_std']:.6g}")
+    print(f"xr  : mean={hit_stats['xr_mean']:.6g}, std={hit_stats['xr_std']:.6g}")
+    print(f"yr  : mean={hit_stats['yr_mean']:.6g}, std={hit_stats['yr_std']:.6g}")
     print(f"z   : mean={hit_stats['z_mean']:.6g}, std={hit_stats['z_std']:.6g}")
 
+    # Compute state-level statistics
     state_names = ["x", "y", "tx", "ty", "Q"]
     state_stats = {}
-    print("\n=== State 统计 ===")
+
+    print("\n=== State statistics ===")
     for i, name in enumerate(state_names):
         vals = states_all[:, i]
         mean, std = float(vals.mean()), float(vals.std())
         state_stats[name] = (mean, std)
         print(f"{name:>3s}: mean={mean:.6g}, std={std:.6g}")
 
-    # 保存统计量到 outDir/
-    os.makedirs(outDir, exist_ok=True)
+    # Save normalization statistics
     with open(hit_stats_out_path, "w") as f:
         json.dump(hit_stats, f, indent=2)
     with open(state_stats_out_path, "w") as f:
         json.dump(state_stats, f, indent=2)
-    print(f"Saved normalization stats to {outDir}/")
 
+    print(f"Saved normalization stats to {outDir}/")
     print("=========================================\n")
 
-    # 初始化数据集（自动归一化）
+    # --------------------------------------------------
+    # Initialize dataset with automatic normalization
     dataset = TrackDataset(
         hits_list=hits_all,
         states=states_all,
@@ -166,33 +198,40 @@ def main():
         state_stats=state_stats
     )
 
+    # Split into training and validation sets
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     generator = torch.Generator().manual_seed(42)
     train_set, val_set = random_split(dataset, [train_size, val_size], generator=generator)
 
-    print('\n\nTrain size:', train_size)
-    print('Validation size:', val_size)
+    print("\n\nTrain size:", train_size)
+    print("Validation size:", val_size)
 
-    train_loader = DataLoader(train_set, batch_size=batchSize, shuffle=True, collate_fn=collate_fn)
-    val_loader = DataLoader(val_set, batch_size=batchSize, shuffle=False, collate_fn=collate_fn)
+    train_loader = DataLoader(train_set, batch_size=batchSize,
+                              shuffle=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_set, batch_size=batchSize,
+                            shuffle=False, collate_fn=collate_fn)
 
+    # Inspect one batch
     hits_sample, state_sample, mask_sample = next(iter(train_loader))
-    print('hits_sample shape:', hits_sample.shape)  # e.g. [batch, num_hits, 5]
-    print('state_sample shape:', state_sample.shape)  # e.g. [batch, 5]
-    print('mask_sample shape:', mask_sample.shape)
+    print("hits_sample shape :", hits_sample.shape)
+    print("state_sample shape:", state_sample.shape)
+    print("mask_sample shape :", mask_sample.shape)
 
     endT_data = time.time()
-    print(f'Loading data took {endT_data - startT_data:.2f}s \n\n')
+    print(f"Loading data took {endT_data - startT_data:.2f}s\n\n")
 
-
-    # Define plotter
+    # --------------------------------------------------
+    # Plotting utility
     plotter = Plotter(print_dir=outDir, end_name=end_name)
 
-    # -----------------------------
+    # Sanity check for transformer dimensions
     if args.hidden_dim % args.nhead != 0:
-        raise ValueError(f"d_model ({args.hidden_dim}) must be divisible by nhead ({args.nhead})")
+        raise ValueError(
+            f"d_model ({args.hidden_dim}) must be divisible by nhead ({args.nhead})"
+        )
 
+    # Initialize model and loss tracker
     model = TrackTransformer(
         hidden_dim=args.hidden_dim,
         nhead=args.nhead,
@@ -202,16 +241,23 @@ def main():
 
     loss_tracker = LossTracker()
 
-    # -----------------------------
+    # --------------------------------------------------
+    # Training phase
     if doTraining:
+        # Select accelerator and devices
         if args.device == "cpu":
-            accelerator = "cpu"; devices = 1
+            accelerator, devices = "cpu", 1
         elif args.device == "gpu":
-            if torch.cuda.is_available(): accelerator="gpu"; devices=1
-            else: print("GPU not available. Falling back to CPU."); accelerator="cpu"; devices=1
+            if torch.cuda.is_available():
+                accelerator, devices = "gpu", 1
+            else:
+                print("GPU not available. Falling back to CPU.")
+                accelerator, devices = "cpu", 1
         elif args.device == "auto":
-            if torch.cuda.is_available(): accelerator="gpu"; devices="auto"
-            else: accelerator="cpu"; devices=1
+            if torch.cuda.is_available():
+                accelerator, devices = "gpu", "auto"
+            else:
+                accelerator, devices = "cpu", 1
         else:
             raise ValueError(f"Unknown device option: {args.device}")
 
@@ -231,31 +277,34 @@ def main():
             callbacks=[loss_tracker]
         )
 
-        print('\n\nTraining...')
+        print("\n\nTraining...")
         startT_train = time.time()
         trainer.fit(model, train_loader, val_loader)
         endT_train = time.time()
-        print(f'Training took {(endT_train - startT_train)/60:.2f} minutes \n\n')
+        print(f"Training took {(endT_train - startT_train) / 60:.2f} minutes\n\n")
 
+        # Plot training and validation losses
         plotter.plotTrainLoss(loss_tracker)
 
-        # Save model
-        # 先把模型切换到 CPU 并 eval 模式
+        # --------------------------------------------------
+        # Save trained model as TorchScript
         model.to("cpu")
         model.eval()
 
-        # 包装模型，使 forward 自动生成全 False mask
+        # Wrap model so that forward() automatically creates a full False mask
         wrapper_model = TrackTransformerWrapper(model)
         wrapper_model.eval()
 
-        # TorchScript 导出（script）
         torchscript_model = torch.jit.script(wrapper_model)
-
-        # 保存
         torchscript_model.save(f"{outDir}/transformer_{end_name}.pt")
-    # -----------------------------
-    # Load model for inference
-    model_file = f"{outDir}/transformer_{end_name}.pt" if doTraining else "nets/transformer_default.pt"
+
+    # --------------------------------------------------
+    # Inference phase
+    model_file = (
+        f"{outDir}/transformer_{end_name}.pt"
+        if doTraining else "nets/transformer_default.pt"
+    )
+
     model = torch.jit.load(model_file)
     model.eval()
 
@@ -267,7 +316,7 @@ def main():
     startT_test = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
-    model.eval()
+
     with torch.no_grad():
         for hits_batch, state_batch in val_loader2:
             hits_batch = hits_batch.to(device)
@@ -280,16 +329,18 @@ def main():
             all_targets.append(y_true.cpu())
 
     endT_test = time.time()
-    print(f'Test with {len(val_loader2.dataset)} samples took {endT_test - startT_test:.2f}s \n\n')
+    print(f"Test with {len(val_loader2.dataset)} samples took {endT_test - startT_test:.2f}s\n\n")
 
-    # 合并整个验证集
-    all_preds = torch.cat(all_preds, dim=0).numpy()  # [N, 5]
-    all_targets = torch.cat(all_targets, dim=0).numpy()  # [N, 5]
+    # Concatenate predictions over the entire validation set
+    all_preds = torch.cat(all_preds, dim=0).numpy()
+    all_targets = torch.cat(all_targets, dim=0).numpy()
 
-    # -----------------------------
-    # ✅ 反归一化预测与真实值
+    # --------------------------------------------------
+    # Denormalize predictions and targets
     def denormalize_state(states, stats):
-        """反归一化函数"""
+        """
+        Convert normalized state variables back to physical units.
+        """
         result = states.copy()
         for i, key in enumerate(["x", "y", "tx", "ty", "Q"]):
             mean, std = stats[key]
@@ -299,7 +350,7 @@ def main():
     all_preds_denorm = denormalize_state(all_preds, state_stats)
     all_targets_denorm = denormalize_state(all_targets, state_stats)
 
-    # 使用 Plotter 绘图
+    # Generate comparison plots
     plotter.plot_diff(all_targets_denorm, all_preds_denorm)
     plotter.plot_pred_target(all_targets_denorm, all_preds_denorm)
 
