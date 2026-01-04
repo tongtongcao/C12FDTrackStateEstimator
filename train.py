@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, random_split
 from trainer import *
 from data import *
 from plotter import Plotter
+import numpy as np
 
 
 def parse_args():
@@ -54,9 +55,10 @@ def parse_args():
                         help="Optional suffix appended to output files")
     parser.add_argument("--no_train", action="store_true",
                         help="Skip training and only run inference using a saved model")
+    parser.add_argument("--outbending", action="store_true",
+        help="Use outbending (default: inbending")
     parser.add_argument("--enable_progress_bar", action="store_true",
                         help="Enable progress bar during training (default: disabled)")
-
     return parser.parse_args()
 
 
@@ -91,12 +93,13 @@ def main():
 
     args = parse_args()
 
-    inputs = args.inputs if args.inputs else ["avgWires.csv"]
+    inputs = args.inputs if args.inputs else ["hitsTracks.csv"]
     outDir = args.outdir
     maxEpochs = args.max_epochs
     batchSize = args.batch_size
     end_name = args.end_name
     doTraining = not args.no_train
+    inbending = not args.outbending
 
     # Ensure output directory exists
     os.makedirs(outDir, exist_ok=True)
@@ -120,21 +123,30 @@ def main():
     # Paths for normalization statistics
     hit_stats_out_path = os.path.join(outDir, "hit_stats.json")
     state_stats_out_path = os.path.join(outDir, "state_stats.json")
-    hit_stats_nets_path = os.path.join("nets", "hit_stats.json")
-    state_stats_nets_path = os.path.join("nets", "state_stats.json")
+    hit_stats_nets_path_inbending = os.path.join("nets", "hit_stats_inbending.json")
+    state_stats_nets_path_inbending = os.path.join("nets", "state_stats_inbending.json")
+    hit_stats_nets_path_outbending = os.path.join("nets", "hit_stats_outbending.json")
+    state_stats_nets_path_outbending = os.path.join("nets", "state_stats_outbending.json")
 
     # --------------------------------------------------
     # Load or compute normalization statistics
     if args.no_train:
         # Inference mode: load statistics from pre-trained model directory
         print("\n=== Inference mode: loading normalization stats from nets/ ===")
-        if not os.path.exists(hit_stats_nets_path) or not os.path.exists(state_stats_nets_path):
-            raise FileNotFoundError("Normalization stats not found in nets/ directory.")
-
-        with open(hit_stats_nets_path, "r") as f:
-            hit_stats = json.load(f)
-        with open(state_stats_nets_path, "r") as f:
-            state_stats = json.load(f)
+        if inbending:
+            if not os.path.exists(hit_stats_nets_path_inbending) or not os.path.exists(state_stats_nets_path_inbending):
+                raise FileNotFoundError("Normalization stats for inbending are not found in nets/ directory.")
+            with open(hit_stats_nets_path_inbending, "r") as f:
+                hit_stats = json.load(f)
+            with open(state_stats_nets_path_inbending, "r") as f:
+                state_stats = json.load(f)
+        else:
+            if not os.path.exists(hit_stats_nets_path_outbending) or not os.path.exists(state_stats_nets_path_outbending):
+                raise FileNotFoundError("Normalization stats for outbending are not found in nets/ directory.")
+            with open(hit_stats_nets_path_outbending, "r") as f:
+                hit_stats = json.load(f)
+            with open(state_stats_nets_path_outbending, "r") as f:
+                state_stats = json.load(f)
 
         print("Loaded normalization stats from nets/")
     else:
@@ -161,32 +173,32 @@ def main():
             "z_std": float(z_vals.std()),
         }
 
-    # Print hit-level statistics
-    print(f"doca: mean={hit_stats['doca_mean']:.6g}, std={hit_stats['doca_std']:.6g}")
-    print(f"xm  : mean={hit_stats['xm_mean']:.6g}, std={hit_stats['xm_std']:.6g}")
-    print(f"xr  : mean={hit_stats['xr_mean']:.6g}, std={hit_stats['xr_std']:.6g}")
-    print(f"yr  : mean={hit_stats['yr_mean']:.6g}, std={hit_stats['yr_std']:.6g}")
-    print(f"z   : mean={hit_stats['z_mean']:.6g}, std={hit_stats['z_std']:.6g}")
+        # Print hit-level statistics
+        print(f"doca: mean={hit_stats['doca_mean']:.6g}, std={hit_stats['doca_std']:.6g}")
+        print(f"xm  : mean={hit_stats['xm_mean']:.6g}, std={hit_stats['xm_std']:.6g}")
+        print(f"xr  : mean={hit_stats['xr_mean']:.6g}, std={hit_stats['xr_std']:.6g}")
+        print(f"yr  : mean={hit_stats['yr_mean']:.6g}, std={hit_stats['yr_std']:.6g}")
+        print(f"z   : mean={hit_stats['z_mean']:.6g}, std={hit_stats['z_std']:.6g}")
 
-    # Compute state-level statistics
-    state_names = ["x", "y", "tx", "ty", "Q"]
-    state_stats = {}
+        # Compute state-level statistics
+        state_names = ["x", "y", "tx", "ty", "Q"]
+        state_stats = {}
 
-    print("\n=== State statistics ===")
-    for i, name in enumerate(state_names):
-        vals = states_all[:, i]
-        mean, std = float(vals.mean()), float(vals.std())
-        state_stats[name] = (mean, std)
-        print(f"{name:>3s}: mean={mean:.6g}, std={std:.6g}")
+        print("\n=== State statistics ===")
+        for i, name in enumerate(state_names):
+            vals = states_all[:, i]
+            mean, std = float(vals.mean()), float(vals.std())
+            state_stats[name] = (mean, std)
+            print(f"{name:>3s}: mean={mean:.6g}, std={std:.6g}")
 
-    # Save normalization statistics
-    with open(hit_stats_out_path, "w") as f:
-        json.dump(hit_stats, f, indent=2)
-    with open(state_stats_out_path, "w") as f:
-        json.dump(state_stats, f, indent=2)
+        # Save normalization statistics
+        with open(hit_stats_out_path, "w") as f:
+            json.dump(hit_stats, f, indent=2)
+        with open(state_stats_out_path, "w") as f:
+            json.dump(state_stats, f, indent=2)
 
-    print(f"Saved normalization stats to {outDir}/")
-    print("=========================================\n")
+        print(f"Saved normalization stats to {outDir}/")
+        print("=========================================\n")
 
     # --------------------------------------------------
     # Initialize dataset with automatic normalization
@@ -300,10 +312,13 @@ def main():
 
     # --------------------------------------------------
     # Inference phase
-    model_file = (
-        f"{outDir}/transformer_{end_name}.pt"
-        if doTraining else "nets/transformer_default.pt"
-    )
+    if doTraining:
+        model_file = f"{outDir}/transformer_{end_name}.pt"
+    else:
+        if inbending:
+            model_file = "nets/transformer_default_inbending.pt"
+        else:
+            model_file = "nets/transformer_default_outbending.pt"
 
     model = torch.jit.load(model_file)
     model.eval()
