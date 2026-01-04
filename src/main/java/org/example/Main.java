@@ -36,10 +36,10 @@ public class Main {
         // Order: (doca, xm, xr, yr, z)
         // These must exactly match the statistics used during training
         float[] hitMean = new float[]{
-                0.54767877f, -39.37779f, -39.37546f, 60.905655f, 374.25867f
+                0.52949071f, -45.771999f,  -45.744694f,  57.336819f, 373.046356f
         };
         float[] hitStd = new float[]{
-                0.4348458f, 51.83236f, 52.26446f, 35.65593f, 111.37744f
+                0.40272677f, 47.928203f, 48.379021f, 32.645191f, 111.54994f
         };
 
         // ------------------------------------------------------------
@@ -47,10 +47,10 @@ public class Main {
         // Order: (x, y, tx, ty, Q)
         // Track state is defined at z = 229 in the tilted sector frame
         float[] stateMean = new float[]{
-                -31.87197f, -0.123296f, -0.13007024f, 0.001625887f, 0.348169f
+                -33.564308f, 0.010787425f, -0.15567796f, 0.0017755219f, 0.317530721f
         };
         float[] stateStd = new float[]{
-                30.66571f, 18.169865f, 0.14433861f, 0.0830202f, 0.7989562f
+                28.667490f, 17.761129f, 0.11940812f, 0.074460238f, 0.74185127f
         };
 
         // ------------------------------------------------------------
