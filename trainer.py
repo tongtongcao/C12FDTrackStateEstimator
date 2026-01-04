@@ -14,7 +14,7 @@ class TrackDataset(Dataset):
 
     Each sample consists of:
       - a variable-length list of hits with 5 features per hit
-      - a 5D target state vector (x, y, tx, ty, Q)
+      - a 5D track state vector (x, y, tx, ty, Q)
 
     Optional normalization is applied using precomputed statistics.
     """

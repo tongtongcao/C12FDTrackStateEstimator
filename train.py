@@ -82,7 +82,7 @@ def main():
     Workflow
     --------
     1. Parse command-line arguments and set random seeds.
-    2. Load input CSV files and collect hit-level and state-level data.
+    2. Load input CSV files and collect hit-level and track-state-level data.
     3. Compute or load normalization statistics.
     4. Construct datasets and data loaders.
     5. Train the transformer model (unless --no_train is specified).
@@ -354,7 +354,7 @@ def main():
     # Denormalize predictions and targets
     def denormalize_state(states, stats):
         """
-        Convert normalized state variables back to physical units.
+        Convert normalized state variables back to track-representation units.
         """
         result = states.copy()
         for i, key in enumerate(["x", "y", "tx", "ty", "Q"]):

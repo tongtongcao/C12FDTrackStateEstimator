@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm
 from scipy.stats import norm
+import pandas as pd
 
 # --------------------------------------------------
 # Global matplotlib style configuration
@@ -94,7 +95,6 @@ class Plotter:
         y_pred : np.ndarray, shape [N, 5]
             Predicted track states.
         """
-        import pandas as pd
 
         y_true = np.asarray(y_true)
         y_pred = np.asarray(y_pred)

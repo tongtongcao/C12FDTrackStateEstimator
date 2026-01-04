@@ -8,10 +8,9 @@ def read_tracks_with_hits(filename):
       Line 1:
         A flattened list of hit-level features. Each hit consists of
         five values: (doca, xm, xr, yr, z).
-        The total number of values on this line must be a multiple of 5.
 
       Line 2:
-        The corresponding initial track state at z = 229
+        The corresponding track state at z = 229
         in the tilted sector frame:
         (x, y, tx, ty, q/p)
 
@@ -58,7 +57,7 @@ def read_tracks_with_hits(filename):
         hits_list.append(hits)
 
         # --------------------------------------------------
-        # Second line: track initial state
+        # Second line: track state
         state_values = [float(x) for x in lines[i + 1].split(",")]
 
         if len(state_values) != 5:
