@@ -102,7 +102,7 @@ public class Main {
         // Load TorchScript model using DJL Criteria
         Criteria<float[][], float[]> criteria = Criteria.builder()
                 .setTypes(float[][].class, float[].class)
-                .optModelPath(Paths.get("nets/transformer_default.pt"))
+                .optModelPath(Paths.get("nets/transformer_default_inbending.pt"))
                 .optEngine("PyTorch")
                 .optTranslator(translator)
                 .optProgress(new ProgressBar())
