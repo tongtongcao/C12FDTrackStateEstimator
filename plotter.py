@@ -100,6 +100,10 @@ class Plotter:
         y_pred = np.asarray(y_pred)
         assert y_true.shape == y_pred.shape, "y_true and y_pred must have the same shape"
 
+        # Flip sign of predicted Q
+        y_pred = y_pred.copy()
+        y_pred[:, 4] *= -1
+
         # --------------------------------------------------
         # Predefined fit ranges and display ranges for each variable
         fit_ranges = {
@@ -190,6 +194,14 @@ class Plotter:
         preds : np.ndarray, shape [N, 5]
             Predicted track states.
         """
+
+        targets = np.asarray(targets)
+        preds = np.asarray(preds)
+
+        # Flip sign of predicted Q
+        preds = preds.copy()
+        preds[:, 4] *= -1
+
         components = ["x", "y", "tx", "ty", "Q"]
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         axes = axes.flatten()
