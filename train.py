@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import time
 import argparse
 import json
@@ -130,23 +131,28 @@ def main():
 
     # --------------------------------------------------
     # Load or compute normalization statistics
+    BASE_DIR = Path(__file__).resolve().parent
+    NETS_DIR = BASE_DIR / "nets"
+
     if args.no_train:
-        # Inference mode: load statistics from pre-trained model directory
         print("\n=== Inference mode: loading normalization stats from nets/ ===")
+
         if inbending:
-            if not os.path.exists(hit_stats_nets_path_inbending) or not os.path.exists(state_stats_nets_path_inbending):
-                raise FileNotFoundError("Normalization stats for inbending are not found in nets/ directory.")
-            with open(hit_stats_nets_path_inbending, "r") as f:
-                hit_stats = json.load(f)
-            with open(state_stats_nets_path_inbending, "r") as f:
-                state_stats = json.load(f)
+            hit_stats_path = NETS_DIR / "hit_stats_inbending.json"
+            state_stats_path = NETS_DIR / "state_stats_inbending.json"
         else:
-            if not os.path.exists(hit_stats_nets_path_outbending) or not os.path.exists(state_stats_nets_path_outbending):
-                raise FileNotFoundError("Normalization stats for outbending are not found in nets/ directory.")
-            with open(hit_stats_nets_path_outbending, "r") as f:
-                hit_stats = json.load(f)
-            with open(state_stats_nets_path_outbending, "r") as f:
-                state_stats = json.load(f)
+            hit_stats_path = NETS_DIR / "hit_stats_outbending.json"
+            state_stats_path = NETS_DIR / "state_stats_outbending.json"
+
+        for p in (hit_stats_path, state_stats_path):
+            if not p.exists():
+                raise FileNotFoundError(f"Normalization stats not found: {p}")
+
+        with open(hit_stats_path, "r") as f:
+            hit_stats = json.load(f)
+
+        with open(state_stats_path, "r") as f:
+            state_stats = json.load(f)
 
         print("Loaded normalization stats from nets/")
     else:
@@ -313,14 +319,20 @@ def main():
     # --------------------------------------------------
     # Inference phase
     if doTraining:
-        model_file = f"{outDir}/transformer_{end_name}.pt"
+        model_file = Path(outDir) / f"transformer_{end_name}.pt"
     else:
         if inbending:
-            model_file = "nets/transformer_default_inbending.pt"
+            model_file = NETS_DIR / "transformer_default_inbending.pt"
         else:
-            model_file = "nets/transformer_default_outbending.pt"
+            model_file = NETS_DIR / "transformer_default_outbending.pt"
 
-    model = torch.jit.load(model_file)
+    model_file = model_file.resolve()
+    print("Loading model from:", model_file)
+
+    if not model_file.exists():
+        raise FileNotFoundError(f"Model file not found: {model_file}")
+
+    model = torch.jit.load(str(model_file))
     model.eval()
 
     val_loader2 = DataLoader(val_set, batch_size=1, shuffle=False)
