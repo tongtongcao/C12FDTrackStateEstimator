@@ -124,10 +124,6 @@ def main():
     # Paths for normalization statistics
     hit_stats_out_path = os.path.join(outDir, "hit_stats.json")
     state_stats_out_path = os.path.join(outDir, "state_stats.json")
-    hit_stats_nets_path_inbending = os.path.join("nets", "hit_stats_inbending.json")
-    state_stats_nets_path_inbending = os.path.join("nets", "state_stats_inbending.json")
-    hit_stats_nets_path_outbending = os.path.join("nets", "hit_stats_outbending.json")
-    state_stats_nets_path_outbending = os.path.join("nets", "state_stats_outbending.json")
 
     # --------------------------------------------------
     # Load or compute normalization statistics
