@@ -33,6 +33,10 @@ def parse_args():
     parser.add_argument("inputs", type=str, nargs="*", default=["hitsTracks.csv"],
                         help="One or more input CSV files")
 
+    # Training sample ratio
+    parser.add_argument("--tr", type=float, default=0.8,
+                        help="ratio of training samples in dataset")
+
     # Training hyperparameters
     parser.add_argument("--max_epochs", type=int, default=120,
                         help="Number of training epochs")
@@ -48,6 +52,10 @@ def parse_args():
                         help="Number of attention heads in the transformer")
     parser.add_argument("--num_layers", type=int, default=3,
                         help="Number of transformer encoder layers")
+
+    # Existing model
+    parser.add_argument("--model_file", type=str, default=None,
+                        help="Path to the trained model")
 
     # Output and runtime options
     parser.add_argument("--outdir", type=str, default="outputs/local",
@@ -101,6 +109,7 @@ def main():
     end_name = args.end_name
     doTraining = not args.no_train
     inbending = not args.outbending
+    existing_model_file = Path(args.model_file) if args.model_file else None
 
     # Ensure output directory exists
     os.makedirs(outDir, exist_ok=True)
@@ -129,6 +138,8 @@ def main():
     # Load or compute normalization statistics
     BASE_DIR = Path(__file__).resolve().parent
     NETS_DIR = BASE_DIR / "nets"
+    if existing_model_file is not None:
+        NETS_DIR = existing_model_file.parent
 
     if args.no_train:
         print("\n=== Inference mode: loading normalization stats from nets/ ===")
@@ -139,6 +150,12 @@ def main():
         else:
             hit_stats_path = NETS_DIR / "hit_stats_outbending.json"
             state_stats_path = NETS_DIR / "state_stats_outbending.json"
+
+        if not hit_stats_path.exists():
+            hit_stats_path = NETS_DIR / "hit_stats.json"
+
+        if not state_stats_path.exists():
+            state_stats_path = NETS_DIR / "state_stats.json"
 
         for p in (hit_stats_path, state_stats_path):
             if not p.exists():
@@ -213,7 +230,7 @@ def main():
     )
 
     # Split into training and validation sets
-    train_size = int(0.8 * len(dataset))
+    train_size = int(args.tr * len(dataset))
     val_size = len(dataset) - train_size
     generator = torch.Generator().manual_seed(42)
     train_set, val_set = random_split(dataset, [train_size, val_size], generator=generator)
@@ -317,10 +334,13 @@ def main():
     if doTraining:
         model_file = Path(outDir) / f"transformer_{end_name}.pt"
     else:
-        if inbending:
-            model_file = NETS_DIR / "transformer_default_inbending.pt"
+        if existing_model_file is not None:
+            model_file = Path(existing_model_file)
         else:
-            model_file = NETS_DIR / "transformer_default_outbending.pt"
+            if inbending:
+                model_file = NETS_DIR / "transformer_default_inbending.pt"
+            else:
+                model_file = NETS_DIR / "transformer_default_outbending.pt"
 
     model_file = model_file.resolve()
     print("Loading model from:", model_file)
