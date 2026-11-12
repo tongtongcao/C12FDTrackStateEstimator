@@ -57,17 +57,19 @@ def parse_args():
     parser.add_argument("--model_file", type=str, default=None,
                         help="Path to the trained model")
 
-    # Output and runtime options
+    # output and runtime options
     parser.add_argument("--outdir", type=str, default="outputs/local",
                         help="Directory to save models and plots")
     parser.add_argument("--end_name", type=str, default="",
                         help="Optional suffix appended to output files")
     parser.add_argument("--no_train", action="store_true",
                         help="Skip training and only run inference using a saved model")
-    parser.add_argument("--outbending", action="store_true",
-        help="Use outbending (default: inbending")
     parser.add_argument("--enable_progress_bar", action="store_true",
                         help="Enable progress bar during training (default: disabled)")
+
+    # Relative scale = ratio of scale factor of magnetic field between validation samples and training samples
+    parser.add_argument("--scale", type=float, default=1.0)
+
     return parser.parse_args()
 
 
@@ -108,7 +110,6 @@ def main():
     batchSize = args.batch_size
     end_name = args.end_name
     doTraining = not args.no_train
-    inbending = not args.outbending
     existing_model_file = Path(args.model_file) if args.model_file else None
 
     # Ensure output directory exists
@@ -144,18 +145,8 @@ def main():
     if args.no_train:
         print("\n=== Inference mode: loading normalization stats from nets/ ===")
 
-        if inbending:
-            hit_stats_path = NETS_DIR / "hit_stats_inbending.json"
-            state_stats_path = NETS_DIR / "state_stats_inbending.json"
-        else:
-            hit_stats_path = NETS_DIR / "hit_stats_outbending.json"
-            state_stats_path = NETS_DIR / "state_stats_outbending.json"
-
-        if not hit_stats_path.exists():
-            hit_stats_path = NETS_DIR / "hit_stats.json"
-
-        if not state_stats_path.exists():
-            state_stats_path = NETS_DIR / "state_stats.json"
+        hit_stats_path = NETS_DIR / "hit_stats.json"
+        state_stats_path = NETS_DIR / "state_stats.json"
 
         for p in (hit_stats_path, state_stats_path):
             if not p.exists():
@@ -337,10 +328,7 @@ def main():
         if existing_model_file is not None:
             model_file = Path(existing_model_file)
         else:
-            if inbending:
-                model_file = NETS_DIR / "transformer_default_inbending.pt"
-            else:
-                model_file = NETS_DIR / "transformer_default_outbending.pt"
+            model_file = NETS_DIR / "transformer_default.pt"
 
     model_file = model_file.resolve()
     print("Loading model from:", model_file)
@@ -394,8 +382,8 @@ def main():
     all_targets_denorm = denormalize_state(all_targets, state_stats)
 
     # Generate comparison plots
-    plotter.plot_diff(all_targets_denorm, all_preds_denorm)
-    plotter.plot_pred_target(all_targets_denorm, all_preds_denorm)
+    plotter.plot_diff(all_targets_denorm, all_preds_denorm, args.scale)
+    plotter.plot_pred_target(all_targets_denorm, all_preds_denorm, args.scale)
 
 
 if __name__ == "__main__":

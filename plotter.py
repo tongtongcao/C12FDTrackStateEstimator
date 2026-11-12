@@ -80,7 +80,7 @@ class Plotter:
         plt.close()
 
     # --------------------------------------------------
-    def plot_diff(self, y_true, y_pred):
+    def plot_diff(self, y_true, y_pred, scale=1.0):
         """
         Plot distributions of prediction residuals (y_pred - y_true)
         for each track parameter, together with Gaussian fits.
@@ -99,6 +99,10 @@ class Plotter:
         y_true = np.asarray(y_true)
         y_pred = np.asarray(y_pred)
         assert y_true.shape == y_pred.shape, "y_true and y_pred must have the same shape"
+
+        # Momentum magnitude is scaled by the scale factor of magnetic field
+        y_pred = y_pred.copy()
+        y_pred[:, 4] /= scale
 
         # --------------------------------------------------
         # Predefined fit ranges and display ranges for each variable
@@ -178,7 +182,7 @@ class Plotter:
         print(f"Saved fit results to {csv_path}")
 
     # --------------------------------------------------
-    def plot_pred_target(self, targets, preds):
+    def plot_pred_target(self, targets, preds, scale=1.0):
         """
         Scatter plots of predicted vs. true values for each
         track parameter.
@@ -193,6 +197,9 @@ class Plotter:
         components = ["x", "y", "tx", "ty", "Q"]
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         axes = axes.flatten()
+
+        preds = preds.copy()
+        preds[:, 4] /= scale
 
         for i, comp in enumerate(components):
             ax = axes[i]
